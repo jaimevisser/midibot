@@ -4,7 +4,7 @@ import logging
 from logging.handlers import RotatingFileHandler
 import os
 
-from midibot import Config
+from midibot import Config, Commands
 
 
 os.makedirs("data/logs", exist_ok=True)
@@ -18,5 +18,7 @@ intents = discord.Intents.default()
 intents.message_content = True
 
 bot = discord.Bot(intents=intents)
+
+bot.add_cog(Commands(bot))
 
 bot.run(Config().token)
