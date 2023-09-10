@@ -85,26 +85,48 @@ class Commands(Cog):
     @slash_command()
     async def add(self, ctx):
         """Add a new song to the database."""
-        modal = SongModal(self.add_new_song, title="Add a new song")
+        async def add_new_song(interaction: discord.Interaction, artist: str, song: str, version:str, origin:str):
+            song = {
+                "artist": artist,
+                "song": song,
+                "version": version if version != "" else None,
+                "origin": origin if origin != "" else None,
+                "id" : str(uuid.uuid4())
+            }
+
+            self.songs.data.append(song)
+            self.songs.sync()
+        
+            await interaction.response.send_message("Song added", ephemeral=True)
+
+        modal = SongModal(add_new_song, title="Add a new song")
         await ctx.send_modal(modal)
 
-    async def add_new_song(self, interaction: discord.Interaction, artist: str, song: str, version:str, origin:str):
-        song = {
-            "artist": artist,
-            "song": song,
-            "version": version if version != "" else None,
-            "origin": origin if origin != "" else None,
-            "id" : str(uuid.uuid4())
-        }
+    @slash_command()
+    async def edit(self, ctx, song: Option(
+            str,
+            "Song",
+            autocomplete=song_search,
+        )):
+        
+        song_obj = self.get_song(song)
 
-        self.songs.data.append(song)
-        self.songs.sync()
-    
-        await interaction.response.send_message("Song added", ephemeral=True)
+        if song_obj == None:
+            await ctx.respond("I don't know that song?", ephemeral=True)
+            return
+        
+        async def update_song(interaction: discord.Interaction, artist: str, song: str, version:str, origin:str):
+            song_obj["artist"] = artist
+            song_obj["song"] = song
+            song_obj["version"] = version
+            song_obj["origin"] = origin
 
+            self.songs.sync
 
-    async def edit(self):
-        pass
+            await interaction.response.send_message("Song updated", ephemeral=True)
+
+        modal = SongModal(update_song, song_obj, title="Edit song")
+        await ctx.send_modal(modal)
 
     @slash_command()
     async def upload(self, ctx, song: Option(
