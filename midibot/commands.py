@@ -55,7 +55,7 @@ class Commands(Cog):
             autocomplete=song_search,
         )
     ):
-        """Download files for a song"""
+        """Download files for a song."""
         song_obj = self.get_song(song)
 
         if song_obj == None:
@@ -84,7 +84,7 @@ class Commands(Cog):
 
     @slash_command()
     async def add(self, ctx):
-        """Add a new song to the database"""
+        """Add a new song to the database."""
         modal = SongModal(self.add_new_song, title="Add a new song")
         await ctx.send_modal(modal)
 
@@ -112,7 +112,7 @@ class Commands(Cog):
             "Song",
             autocomplete=song_search,
         )):
-        """Upload files for a song"""
+        """Upload files for a song."""
 
         song_obj = self.get_song(song)
 
@@ -138,5 +138,27 @@ class Commands(Cog):
                     await ctx.send_followup(f"{ext} file added or replaced")
 
 
-    async def remove(self):
-        pass
+    @slash_command()
+    async def remove(self, ctx, song: Option(
+            str,
+            "Song",
+            autocomplete=song_search,
+        )):
+        """Remove a song and all accompanying files."""
+        song_obj = self.get_song(song)
+
+        if song_obj == None:
+            await ctx.respond("I don't know that song?", ephemeral=True)
+            return
+        
+        id = song_obj["id"]
+        for ext in file_exts:
+            stored = f'data/songs/{id}{ext}'
+
+            if os.path.exists(stored):
+                os.remove(stored)
+        
+        self.songs.data.remove(song_obj)
+        self.songs.sync()
+
+        await ctx.respond("Song removed", ephemeral=True)
