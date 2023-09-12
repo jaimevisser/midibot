@@ -291,3 +291,21 @@ class Commands(Cog):
         await ctx.respond("Your rating has been added, thanks!", ephemeral=True)
 
 
+    @slash_command()
+    @guild_only()
+    async def list(self, ctx: discord.ApplicationContext):
+        def songsorter(song: dict):
+            return song.get("rating", float(0))
+
+        sorted = self.songs.data.copy()
+        sorted.sort(key=songsorter, reverse=True)
+
+        list = ""
+
+        for song in sorted[0:200]:
+            list += f'{song["rating"]} : {self.song_to_string(song)}'
+
+        await ctx.respond(list, ephemeral=True)
+
+
+
