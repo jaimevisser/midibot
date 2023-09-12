@@ -100,7 +100,9 @@ class Commands(Cog):
         """Add a new song to the database."""
 
         if ctx.guild.id not in servers:
-            await ctx.respond("You can only use this bot in the pianovision server.", ephemeral=True)
+            await ctx.respond(
+                "You can only use this bot in the pianovision server.", ephemeral=True
+            )
             return
 
         async def add_new_song(
@@ -141,7 +143,9 @@ class Commands(Cog):
         """Edit an existing song."""
 
         if ctx.guild.id not in servers:
-            await ctx.respond("You can only use this bot in the pianovision server.", ephemeral=True)
+            await ctx.respond(
+                "You can only use this bot in the pianovision server.", ephemeral=True
+            )
             return
 
         song_obj = self.get_song(song)
@@ -184,7 +188,9 @@ class Commands(Cog):
         """Upload files for a song."""
 
         if ctx.guild.id not in servers:
-            await ctx.respond("You can only use this bot in the pianovision server.", ephemeral=True)
+            await ctx.respond(
+                "You can only use this bot in the pianovision server.", ephemeral=True
+            )
             return
 
         song_obj = self.get_song(song)
@@ -193,28 +199,21 @@ class Commands(Cog):
             await ctx.respond("I don't know that song?", ephemeral=True)
             return
 
+        for ext in file_exts:
+            if file.filename.endswith(ext):
+                stored = f'data/songs/{song_obj["id"]}{ext}'
+                if os.path.exists(stored):
+                    os.remove(stored)
+
+                await file.save(stored)
+                await ctx.respond(f"{ext} file added or replaced", ephemeral=True)
+                return
+
         await ctx.respond(
-            "Adding song files.\nSend a message with the files attached in the next 5 minutes."
+            "I don't know what to do with that file. Make sure it is one of the following types: "
+            + ", ".join(file_exts),
+            ephemeral=True,
         )
-
-        def from_same_author(m: discord.Message):
-            return m.author == ctx.author
-
-        try:
-            response: discord.Message = await self.bot.wait_for(
-                "message", check=from_same_author, timeout=60 * 5
-            )
-        except TimeoutError:
-            return await ctx.send_followup(
-                "Sorry, you took too long. I stopped listening."
-            )
-
-        for a in response.attachments:
-            for ext in file_exts:
-                if a.filename.endswith(ext):
-                    with open(f'data/songs/{song_obj["id"]}{ext}', "wb") as file:
-                        file.write(await a.read())
-                    await ctx.send_followup(f"{ext} file added or replaced")
 
     @slash_command()
     @guild_only()
@@ -229,9 +228,11 @@ class Commands(Cog):
         ),
     ):
         """Remove a song and all accompanying files."""
-        
+
         if ctx.guild.id not in servers:
-            await ctx.respond("You can only use this bot in the pianovision server.", ephemeral=True)
+            await ctx.respond(
+                "You can only use this bot in the pianovision server.", ephemeral=True
+            )
             return
 
         song_obj = self.get_song(song)
@@ -251,3 +252,42 @@ class Commands(Cog):
         self.songs.sync()
 
         await ctx.respond("Song removed", ephemeral=True)
+
+    @slash_command()
+    @guild_only()
+    async def rate(
+        self,
+        ctx: discord.ApplicationContext,
+        song: Option(
+            str,
+            "Song",
+            autocomplete=song_search,
+        ),
+        rating: Option(int, "Rating from 0 to 5", min_value=0, max_value=5)
+    ):
+        """Rate a song"""
+
+        if ctx.guild.id not in servers:
+            await ctx.respond(
+                "You can only use this bot in the pianovision server.", ephemeral=True
+            )
+            return
+
+        song_obj: dict = self.get_song(song)
+
+        if song_obj == None:
+            await ctx.respond("I don't know that song?", ephemeral=True)
+            return
+        
+        if "ratings" not in song_obj:
+            song_obj["ratings"] = {}
+
+        song_obj["ratings"][f"{ctx.author.id}"] = rating
+        ratings = list(song_obj["ratings"].values())
+        song_obj["rating"] = float(sum(ratings)) / len(ratings)
+
+        self.songs.sync()
+
+        await ctx.respond("Your rating has been added, thanks!", ephemeral=True)
+
+
