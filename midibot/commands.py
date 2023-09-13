@@ -184,6 +184,7 @@ class Commands(Cog):
             "Song",
             autocomplete=song_search,
         ),
+        file: discord.Attachment
     ):
         """Upload files for a song."""
 
@@ -294,6 +295,8 @@ class Commands(Cog):
     @slash_command()
     @guild_only()
     async def list(self, ctx: discord.ApplicationContext):
+        """Get a list of the top rated songs."""
+
         def songsorter(song: dict):
             return song.get("rating", float(0))
 
@@ -302,7 +305,7 @@ class Commands(Cog):
 
         list = ""
 
-        for song in sorted[0:200]:
+        for song in sorted[0:50]:
             list += f'{song["rating"]} : {self.song_to_string(song)}'
 
         await ctx.respond(list, ephemeral=True)
