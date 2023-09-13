@@ -306,7 +306,7 @@ class Commands(Cog):
         list = ""
 
         for song in sorted[0:50]:
-            list += f'{song["rating"]} : {self.song_to_string(song)}'
+            list += f'{song.get("rating", float(0))} : {self.song_to_string(song)}'
 
         await ctx.respond(list, ephemeral=True)
 
