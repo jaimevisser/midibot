@@ -5,53 +5,22 @@ import uuid
 
 import discord
 
-from midibot import Store, SongModal
+from midibot import Store, SongModal, Songs
 from discord import Cog, Option, guild_only, slash_command
 from discord.commands import default_permissions
 
 
 _log = logging.getLogger(__name__)
 
-file_exts = [".mid", ".mscz", ".json"]
-
 servers = [1004388945422987304, 908282497769558036]
-
 
 class Commands(Cog):
     def __init__(self, bot: discord.Bot):
-        self.songs = Store[list](f"data/songs.json", [])
         self.bot = bot
-        os.makedirs("data/songs", exist_ok=True)
-        os.makedirs("data/output_files", exist_ok=True)
-
-    @property
-    def songlist(self):
-        return [self.song_to_string(x) for x in self.songs.data]
-
-    def song_to_string(self, song):
-        string = f'{song["artist"]} - {song["song"]}'
-        if song["version"] is not None and song["version"] != "":
-            string = string + f' ({song["version"]})'
-        return string
-
-    def get_song(self, songstring):
-        for song in self.songs.data:
-            if self.song_to_string(song) == songstring:
-                return song
-        return None
+        self.songs = Songs()
 
     async def song_search(self, ctx: discord.AutocompleteContext):
-        # Split the input string into lowercase words
-        input_words = ctx.value.lower().split()
-
-        # Filter the sentences that contain all input words (case-insensitive)
-        matching_sentences = [
-            sentence
-            for sentence in self.songlist
-            if all(word in sentence.lower() for word in input_words)
-        ]
-
-        return matching_sentences
+        return self.songs.song_search(ctx.value)
 
     @slash_command()
     async def download(
@@ -64,23 +33,13 @@ class Commands(Cog):
         ),
     ):
         """Download files for a song."""
-        song_obj = self.get_song(song)
+        found = self.songs.get_attachements(song)
 
-        if song_obj == None:
+        if found == None:
             await ctx.respond("I don't know that song?", ephemeral=True)
             return
 
-        id = song_obj["id"]
-        files = []
-        attachements = []
-        for ext in file_exts:
-            stored = f"data/songs/{id}{ext}"
-            nice = f"data/output_files/{song}{ext}"
-
-            if os.path.exists(stored):
-                shutil.copy(stored, nice)
-                files.append(nice)
-                attachements.append(discord.File(nice))
+        (files, attachements) = found
 
         if len(attachements) > 0:
             await ctx.respond("There you go", files=attachements, ephemeral=True)
@@ -118,9 +77,10 @@ class Commands(Cog):
                 "version": version if version != "" else None,
                 "origin": origin if origin != "" else None,
                 "id": str(uuid.uuid4()),
+                "type": "verified"
             }
 
-            self.songs.data.append(song)
+            self.songs.songs.data.append(song)
             self.songs.sync()
 
             await interaction.response.send_message("Song added", ephemeral=True)
@@ -166,7 +126,7 @@ class Commands(Cog):
             song_obj["version"] = version
             song_obj["origin"] = origin
 
-            self.songs.sync
+            self.songs.sync()
 
             await interaction.response.send_message("Song updated", ephemeral=True)
 
@@ -193,28 +153,19 @@ class Commands(Cog):
                 "You can only use this bot in the pianovision server.", ephemeral=True
             )
             return
+        
+        saved = self.songs.add_attachment(song, file)
 
-        song_obj = self.get_song(song)
-
-        if song_obj == None:
+        if (saved is None):
             await ctx.respond("I don't know that song?", ephemeral=True)
-            return
-
-        for ext in file_exts:
-            if file.filename.endswith(ext):
-                stored = f'data/songs/{song_obj["id"]}{ext}'
-                if os.path.exists(stored):
-                    os.remove(stored)
-
-                await file.save(stored)
-                await ctx.respond(f"{ext} file added or replaced", ephemeral=True)
-                return
-
-        await ctx.respond(
-            "I don't know what to do with that file. Make sure it is one of the following types: "
-            + ", ".join(file_exts),
-            ephemeral=True,
-        )
+        if (saved is True):
+            await ctx.respond(f"File added or replaced", ephemeral=True)
+        if (saved is False):
+            await ctx.respond(
+                "I don't know what to do with that file. Make sure it is one of the following types:\n"
+                + ", ".join(Songs.file_exts),
+                ephemeral=True,
+            )
 
     @slash_command()
     @guild_only()
@@ -236,23 +187,10 @@ class Commands(Cog):
             )
             return
 
-        song_obj = self.get_song(song)
-
-        if song_obj == None:
+        if not self.songs.remove(song):
             await ctx.respond("I don't know that song?", ephemeral=True)
-            return
-
-        id = song_obj["id"]
-        for ext in file_exts:
-            stored = f"data/songs/{id}{ext}"
-
-            if os.path.exists(stored):
-                os.remove(stored)
-
-        self.songs.data.remove(song_obj)
-        self.songs.sync()
-
-        await ctx.respond("Song removed", ephemeral=True)
+        else:
+            await ctx.respond("Song removed", ephemeral=True)
 
     @slash_command()
     @guild_only()
@@ -274,22 +212,10 @@ class Commands(Cog):
             )
             return
 
-        song_obj: dict = self.get_song(song)
-
-        if song_obj == None:
+        if self.songs.rate(song,ctx.author.id, rating) == None:
             await ctx.respond("I don't know that song?", ephemeral=True)
-            return
-        
-        if "ratings" not in song_obj:
-            song_obj["ratings"] = {}
-
-        song_obj["ratings"][f"{ctx.author.id}"] = rating
-        ratings = list(song_obj["ratings"].values())
-        song_obj["rating"] = float(sum(ratings)) / len(ratings)
-
-        self.songs.sync()
-
-        await ctx.respond("Your rating has been added, thanks!", ephemeral=True)
+        else:
+            await ctx.respond("Your rating has been added, thanks!", ephemeral=True)
 
 
     @slash_command()
@@ -300,15 +226,20 @@ class Commands(Cog):
         def songsorter(song: dict):
             return song.get("rating", float(0))
 
-        sorted = self.songs.data.copy()
+        sorted = self.songs.songs.data.copy()
         sorted.sort(key=songsorter, reverse=True)
 
-        list = ""
+        chunk_size = 30
 
-        for song in sorted[0:50]:
-            list += f'{song.get("rating", float(0))} : {self.song_to_string(song)}\n'
+        chunked = [sorted[i:i+chunk_size] for i in range(0, len(sorted), chunk_size)]
 
-        await ctx.respond(list, ephemeral=True)
+        for songs in chunked:
+            list = ""
+
+            for song in songs:
+                list += f'{song.get("rating", float(0))} : {self.songs.song_to_string(song)}\n'
+
+            await ctx.respond(list, ephemeral=True)
 
 
 

@@ -8,7 +8,7 @@ from midibot import Config, Commands
 
 
 os.makedirs("data/logs", exist_ok=True)
-filehandler = RotatingFileHandler(filename="data/logs/scrimbot.log", mode="w", maxBytes=1024 * 50, backupCount=4)
+filehandler = RotatingFileHandler(filename="data/logs/midibot.log", mode="w", maxBytes=1024 * 50, backupCount=4)
 
 logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s - %(name)s - %(levelname)s:%(message)s",
