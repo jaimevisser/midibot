@@ -1,6 +1,7 @@
 import logging
 import os
 import shutil
+from typing import Union
 import uuid
 
 import discord
@@ -20,7 +21,22 @@ class Commands(Cog):
         self.songs = Songs()
 
     async def song_search(self, ctx: discord.AutocompleteContext):
-        return self.songs.song_search(ctx.value)
+        return await self.songs.song_search(ctx.value)
+    
+    async def wrong_server(self, ctx) -> bool:
+        if ctx.guild.id not in servers:
+            await ctx.respond(
+                "You can only use this bot in the pianovision server.", ephemeral=True
+            )
+            return True
+        return False
+    
+    async def get_song(self, ctx, song_str: str) -> Union[None, dict]:
+        song_obj = self.songs.get(song_str)
+
+        if song_obj == None:
+            await ctx.respond("I don't know that song?", ephemeral=True)
+        return song_obj
 
     @slash_command()
     async def download(
@@ -33,13 +49,11 @@ class Commands(Cog):
         ),
     ):
         """Download files for a song."""
-        found = self.songs.get_attachements(song)
+        if not (song_obj := await self.get_song(ctx, song)) : return
+        
+        song_obj = self.songs.get_attachements(song_obj)
 
-        if found == None:
-            await ctx.respond("I don't know that song?", ephemeral=True)
-            return
-
-        (files, attachements) = found
+        (files, attachements) = song_obj
 
         if len(attachements) > 0:
             await ctx.respond("There you go", files=attachements, ephemeral=True)
@@ -57,31 +71,14 @@ class Commands(Cog):
     @default_permissions(administrator=True)
     async def add(self, ctx: discord.ApplicationContext):
         """Add a new song to the database."""
-
-        if ctx.guild.id not in servers:
-            await ctx.respond(
-                "You can only use this bot in the pianovision server.", ephemeral=True
-            )
-            return
+        if await self.wrong_server(ctx): return
 
         async def add_new_song(
             interaction: discord.Interaction,
-            artist: str,
-            song: str,
-            version: str,
-            origin: str,
+            data: dict
         ):
-            song = {
-                "artist": artist,
-                "song": song,
-                "version": version if version != "" else None,
-                "origin": origin if origin != "" else None,
-                "id": str(uuid.uuid4()),
-                "type": "verified"
-            }
-
-            self.songs.songs.data.append(song)
-            self.songs.sync()
+            data["added_by"] = ctx.author.id
+            self.songs.add_song(data)
 
             await interaction.response.send_message("Song added", ephemeral=True)
 
@@ -101,34 +98,17 @@ class Commands(Cog):
         ),
     ):
         """Edit an existing song."""
-
-        if ctx.guild.id not in servers:
-            await ctx.respond(
-                "You can only use this bot in the pianovision server.", ephemeral=True
-            )
-            return
-
-        song_obj = self.get_song(song)
-
-        if song_obj == None:
-            await ctx.respond("I don't know that song?", ephemeral=True)
-            return
+        if await self.wrong_server(ctx): return
+        if not (song_obj := await self.get_song(ctx, song)) : return
 
         async def update_song(
             interaction: discord.Interaction,
-            artist: str,
-            song: str,
-            version: str,
-            origin: str,
+            data: dict
         ):
-            song_obj["artist"] = artist
-            song_obj["song"] = song
-            song_obj["version"] = version
-            song_obj["origin"] = origin
-
-            self.songs.sync()
-
-            await interaction.response.send_message("Song updated", ephemeral=True)
+            if self.songs.update(song_obj,data):
+                await interaction.response.send_message("Song updated", ephemeral=True)
+            else:
+                await ctx.respond("Updating failed", ephemeral=True)
 
         modal = SongModal(update_song, song_obj, title="Edit song")
         await ctx.send_modal(modal)
@@ -147,17 +127,11 @@ class Commands(Cog):
         file: discord.Attachment
     ):
         """Upload files for a song."""
-
-        if ctx.guild.id not in servers:
-            await ctx.respond(
-                "You can only use this bot in the pianovision server.", ephemeral=True
-            )
-            return
+        if await self.wrong_server(ctx): return
+        if not (song_obj := await self.get_song(ctx, song)) : return
         
-        saved = self.songs.add_attachment(song, file)
+        saved = await self.songs.add_attachment(song_obj, file)
 
-        if (saved is None):
-            await ctx.respond("I don't know that song?", ephemeral=True)
         if (saved is True):
             await ctx.respond(f"File added or replaced", ephemeral=True)
         if (saved is False):
@@ -180,14 +154,10 @@ class Commands(Cog):
         ),
     ):
         """Remove a song and all accompanying files."""
+        if await self.wrong_server(ctx): return
+        if not (song_obj := await self.get_song(ctx, song)) : return
 
-        if ctx.guild.id not in servers:
-            await ctx.respond(
-                "You can only use this bot in the pianovision server.", ephemeral=True
-            )
-            return
-
-        if not self.songs.remove(song):
+        if not self.songs.remove(song_obj):
             await ctx.respond("I don't know that song?", ephemeral=True)
         else:
             await ctx.respond("Song removed", ephemeral=True)
@@ -205,17 +175,11 @@ class Commands(Cog):
         rating: Option(int, "Rating from 0 to 5", min_value=0, max_value=5)
     ):
         """Rate a song"""
+        if await self.wrong_server(ctx): return
+        if not (song_obj := await self.get_song(ctx, song)) : return
 
-        if ctx.guild.id not in servers:
-            await ctx.respond(
-                "You can only use this bot in the pianovision server.", ephemeral=True
-            )
-            return
-
-        if self.songs.rate(song,ctx.author.id, rating) == None:
-            await ctx.respond("I don't know that song?", ephemeral=True)
-        else:
-            await ctx.respond("Your rating has been added, thanks!", ephemeral=True)
+        self.songs.rate(song_obj,ctx.author.id, rating)
+        await ctx.respond("Your rating has been added, thanks!", ephemeral=True)
 
 
     @slash_command()

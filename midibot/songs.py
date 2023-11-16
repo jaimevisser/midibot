@@ -1,6 +1,7 @@
 from typing import Union
 import os
 import shutil
+import uuid
 
 import discord
 
@@ -26,13 +27,13 @@ class Songs:
     def songlist(self):
         return [self.song_to_string(x) for x in self.songs.data]
 
-    def song_to_string(self, song):
-        string = f'{song["artist"]} - {song["song"]}'
-        if song["version"] is not None and song["version"] != "":
-            string = string + f' ({song["version"]})'
+    def song_to_string(self, song_obj: dict) -> str:
+        string = f'{song_obj["artist"]} - {song_obj["song"]}'
+        if song_obj["version"] is not None and song_obj["version"] != "":
+            string = string + f' ({song_obj["version"]})'
         return string
 
-    def get(self, songstring):
+    def get(self, songstring) -> Union[None, dict]:
         for song in self.songs.data:
             if self.song_to_string(song) == songstring:
                 return song
@@ -53,12 +54,8 @@ class Songs:
         return songs
 
     def get_attachements(
-        self, song: str
+        self, song_obj: dict
     ) -> Union[None, tuple[list[discord.File], list[str]]]:
-        song_obj = self.get(song)
-
-        if song_obj == None:
-            return None
 
         id = song_obj["id"]
         files: list[str] = []
@@ -66,22 +63,18 @@ class Songs:
 
         for ext in Songs.file_exts:
             stored = f"data/songs/{id}{ext}"
-            nice = f"data/output_files/{song}{ext}"
+            nice = f"data/output_files/{self.song_to_string(song_obj)}{ext}"
 
-        if os.path.exists(stored):
-            shutil.copy(stored, nice)
-            files.append(nice)
-            attachements.append(discord.File(nice))
+            if os.path.exists(stored):
+                shutil.copy(stored, nice)
+                files.append(nice)
+                attachements.append(discord.File(nice))
 
         return (files, attachements)
 
     async def add_attachment(
-        self, song: str, attachment: discord.Attachment
+        self, song_obj: dict, attachment: discord.Attachment
     ) -> Union[None, bool]:
-        song_obj = self.songs.get(song)
-
-        if song_obj == None:
-            return None
 
         for ext in Songs.file_exts:
             if attachment.filename.endswith(ext):
@@ -93,8 +86,7 @@ class Songs:
                 return True
         return False
 
-    def remove(self, song: str) -> bool:
-        song_obj = self.get_song(song)
+    def remove(self, song_obj:dict) -> bool:
 
         if song_obj == None:
             return False
@@ -110,14 +102,9 @@ class Songs:
         self.songs.sync()
         return True
 
-    def rate(self, song: str, userid: int, rating: int) -> Union[None, bool]:
+    def rate(self, song_obj: dict, userid: int, rating: int) -> None:
         if 5 < rating < 0:
             return False
-
-        song_obj = self.get_song(song)
-
-        if song_obj == None:
-            return None
 
         if "ratings" not in song_obj:
             song_obj["ratings"] = {}
@@ -128,3 +115,21 @@ class Songs:
 
         self.songs.sync()
         return True
+    
+    def __generate_new_song(self) -> dict:
+        return {
+            "id": str(uuid.uuid4()),
+            "type": "verified"
+        }
+    
+    def add_song(self, song_data: dict):
+        song_obj = self.__generate_new_song()
+        song_obj.update(song_data)
+        self.songs.data.append(song_obj)
+        self.sync()
+
+    def update(self, song_obj:dict, song_data: dict) -> bool:
+        song_obj.update(song_data)
+        self.songs.sync()
+        return True
+        
