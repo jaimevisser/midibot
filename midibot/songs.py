@@ -9,27 +9,47 @@ from midibot import Store
 
 
 class Songs:
-    file_exts = [".mid", ".mscz", ".json"]
+    class File:
+        MIDI = ".mid"
+        MUSESCORE = ".mscz"
+        PIANOVISION = ".json"
+
+    file_exts = [File.MIDI, File.MUSESCORE, File.PIANOVISION]
+
+    class Type:
+        VERIFIED = "verified"
+        REQUESTED = "requested"
+        UNVERIFIED = "unverified"
 
     def __init__(self):
         self.songs = Store[list](f"data/songs.json", [])
         os.makedirs("data/songs", exist_ok=True)
         os.makedirs("data/output_files", exist_ok=True)
 
-        migrate = [x for x in self.songs.data if "type" not in x]
+        for s in self.songs.data:
+            if not s["type"] == Songs.Type.UNVERIFIED:
+                s["type"] = Songs.Type.VERIFIED if Songs.File.MIDI in self.has_attachments(s) \
+                    else Songs.Type.REQUESTED
+            
+            if "origin" not in s or s["origin"] == None:
+                s["origin"] = ""
 
-        if migrate:
-            for s in migrate:
-                s["type"] = "verified"
-            self.sync()
+            if "version" not in s or s["version"] == None:
+                s["version"] = ""
+
+        self.sync()
 
     @property
     def songlist(self):
         return [self.song_to_string(x) for x in self.songs.data]
+    
+    @property
+    def songtuples(self):
+        return tuple((self.song_to_string(x), x) for x in self.songs.data)
 
     def song_to_string(self, song_obj: dict) -> str:
         string = f'{song_obj["artist"]} - {song_obj["song"]}'
-        if song_obj["version"] is not None and song_obj["version"] != "":
+        if song_obj["version"]:
             string = string + f' ({song_obj["version"]})'
         return string
 
@@ -43,15 +63,40 @@ class Songs:
         self.songs.sync()
 
     async def song_search(self, search_string: str) -> list[str]:
-        input_words = search_string.lower().split()
 
-        songs = [
+        exact = [
             song
             for song in self.songlist
-            if all(word in song.lower() for word in input_words)
+            if search_string.lower() in song.lower()
         ]
 
-        return songs
+        input_words = search_string.lower().split()
+
+        partial = [
+            song
+            for song in self.songlist
+            if song not in exact and all(word in song.lower() for word in input_words)
+        ]
+
+        return exact + partial
+    
+    async def song_search_unverified(self, search_string: str) -> list[str]:
+
+        exact = [
+            song[0]
+            for song in self.songtuples
+            if song[1]["type"] == Songs.Type.UNVERIFIED and search_string.lower() in song[0].lower()
+        ]
+
+        input_words = search_string.lower().split()
+
+        partial = [
+            song[0]
+            for song in self.songtuples
+            if song[1]["type"] == Songs.Type.UNVERIFIED and song[0] not in exact and all(word in song[0].lower() for word in input_words)
+        ]
+
+        return exact + partial
 
     def get_attachements(
         self, song_obj: dict
@@ -71,6 +116,18 @@ class Songs:
                 attachements.append(discord.File(nice))
 
         return (files, attachements)
+    
+    def has_attachments(self, song_obj: dict) -> list:
+        id = song_obj["id"]
+        attachments = []
+
+        for ext in Songs.file_exts:
+            stored = f"data/songs/{id}{ext}"
+
+            if os.path.exists(stored):
+                attachments.append(ext)
+        
+        return attachments
 
     async def add_attachment(
         self, song_obj: dict, attachment: discord.Attachment
@@ -83,6 +140,11 @@ class Songs:
                     os.remove(stored)
 
                 await attachment.save(stored)
+
+                if song_obj["type"] == Songs.Type.REQUESTED and ext == Songs.File.MIDI:
+                    song_obj["type"] = Songs.Type.UNVERIFIED
+                    self.sync()
+
                 return True
         return False
 
@@ -122,14 +184,31 @@ class Songs:
             "type": "verified"
         }
     
-    def add_song(self, song_data: dict):
+    def add_song(self, song_data: dict) -> Union[None, str]:
+        song_str = self.song_to_string(song_data)
+        if song_str in self.songlist:
+            return "Song already exists in my database"
+        
+        if song_data["origin"] and [x for x in self.songs.data if x["origin"] == song_data["origin"]]:
+            return "Song with that URL is already in my database"
+
         song_obj = self.__generate_new_song()
         song_obj.update(song_data)
         self.songs.data.append(song_obj)
         self.sync()
 
-    def update(self, song_obj:dict, song_data: dict) -> bool:
+    def update(self, song_obj:dict, song_data: dict) -> Union[None, str]:
+        song_str = self.song_to_string(song_data)
+        if song_str in self.songlist:
+            return "Song already exists in my database"
+        
+        if song_data["origin"] and [x for x in self.songs.data if x["origin"] == song_data["origin"]]:
+            return "Song with that URL is already in my database"
+
         song_obj.update(song_data)
-        self.songs.sync()
-        return True
+        self.sync()
+
+    def verify(self, song_obj:dict):
+        song_obj["type"] = Songs.Type.VERIFIED
+        self.sync()
         
