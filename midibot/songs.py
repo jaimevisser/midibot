@@ -199,10 +199,10 @@ class Songs:
 
     def update(self, song_obj:dict, song_data: dict) -> Union[None, str]:
         song_str = self.song_to_string(song_data)
-        if song_str in self.songlist:
+        if [x for x in self.songs.data if x is not song_obj and self.song_to_string(x) == song_str]:
             return "Song already exists in my database"
         
-        if song_data["origin"] and [x for x in self.songs.data if x["origin"] == song_data["origin"]]:
+        if song_data["origin"] and [x for x in self.songs.data if x is not song_obj and x["origin"] == song_data["origin"]]:
             return "Song with that URL is already in my database"
 
         song_obj.update(song_data)
