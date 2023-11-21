@@ -96,7 +96,6 @@ class Commands(Cog):
 
     @slash_command()
     @guild_only()
-    @default_permissions(administrator=True)
     async def request(self, ctx: discord.ApplicationContext):
         """Request a song."""
         if await self.wrong_server(ctx):
@@ -108,9 +107,14 @@ class Commands(Cog):
             if error := self.songs.add_song(data):
                 await interaction.response.send_message(error, ephemeral=True)
                 return
+            
+            link = ":link: " if data["origin"] else ""
+            nag = "" if data["origin"] else "\n\nHey, you didn't add a MuseScore or other link to your request :cry:."+ \
+                " If you weren't able to find the song on MuseScore, that's fine."+ \
+                " If you didn't check MuseScore, do so next time to help our midi-searching volunteers out :heart:."
 
             await interaction.response.send_message(
-                f'Song "{self.songs.song_to_string(data)}" requested by <@{ctx.author.id}>.'
+                f'Song "{self.songs.song_to_string(data)}" {link}requested by <@{ctx.author.id}>.{nag}'
             )
 
         modal = SongModal(add_new_song, title="Request a song")
@@ -155,12 +159,23 @@ class Commands(Cog):
             autocomplete=song_search,
         ),
         file: discord.Attachment,
+        origin: Option(str,"MuseScore or other URL where the file originated from",required=False)
     ):
         """Upload files for a song."""
         if await self.wrong_server(ctx):
             return
         if not (song_obj := await self.get_song(ctx, song)):
             return
+        
+        if origin and origin != song_obj["origin"]:
+            update_data = {
+                "artist": song_obj["artist"],
+                "song": song_obj["song"],
+                "origin": origin
+            }
+            if error := self.songs.update(song_obj, update_data):
+                await ctx.respond(error, ephemeral=True)
+                return
 
         was_requested = song_obj["type"] == Songs.Type.REQUESTED
 
@@ -353,8 +368,8 @@ class Commands(Cog):
         """Help!"""
         await ctx.respond(
             "**Midibot help!**\n"+
-            "Midibot is here to help you find midi files to play with PianoVision, or to request files you want to play.\n"+
-            "*The following commands are available:*\n\n"+
+            "Midibot is here to help you find midi files to play with PianoVision, or to request files you want to play.\n\n"+
+            "*The following commands are available:*\n"+
             "`/list`: List songs in Midibot, by default only shows verified songs but you can change the filter option if you want.\n"+
             "`/download`: Download a song, start typing in the song option to find the song you are looking for.\n"+
             "`/request`: Request a song. Adding a MuseScore URL gives you priority over songs that don't have an URL.\n"+

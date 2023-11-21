@@ -49,7 +49,7 @@ class Songs:
 
     def song_to_string(self, song_obj: dict) -> str:
         string = f'{song_obj["artist"]} - {song_obj["song"]}'
-        if song_obj["version"]:
+        if "version" in song_obj and song_obj["version"]:
             string = string + f' ({song_obj["version"]})'
         return string
 
