@@ -324,7 +324,7 @@ class Commands(Cog):
             if x["type"] == Songs.Type.REQUESTED and not x["origin"]
         ]
 
-        chunk_size = 20
+        chunk_size = 10
 
         chunked = [
             sorted[i : i + chunk_size] for i in range(0, len(sorted), chunk_size)
