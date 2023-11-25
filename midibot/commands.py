@@ -331,13 +331,19 @@ class Commands(Cog):
         ]
 
         for songs in chunked:
-            list = ""
+            embeds = []
 
             for song in songs:
-                requester = f', requested by <@{song["requested_by"]}>' if "requested_by" in song else ""
-                list += f'{self.songs.song_to_string(song)} {song["origin"]}{requester}\n'
+                embed = discord.Embed(title=self.songs.song_to_string(song),
+                                      type="rich")
+                if "requested_by" in song:
+                    embed.add_field(name="Requested by",value=f'<@{song["requested_by"]}>')
+                if song["origin"]:
+                    embed.description = song["origin"]
 
-            await ctx.respond(list, ephemeral=True)
+                embeds.append(embed)
+
+            await ctx.respond(embeds=embeds,ephemeral=True)
 
     @slash_command()
     @guild_only()
