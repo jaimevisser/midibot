@@ -334,7 +334,8 @@ class Commands(Cog):
             list = ""
 
             for song in songs:
-                list += f'{self.songs.song_to_string(song)} {song["origin"]}\n'
+                requester = f', requested by <@{song["requested_by"]}>' if "requested_by" in song else ""
+                list += f'{self.songs.song_to_string(song)} {song["origin"]}{requester}\n'
 
             await ctx.respond(list, ephemeral=True)
 
