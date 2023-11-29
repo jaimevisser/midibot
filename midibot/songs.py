@@ -21,6 +21,8 @@ class Songs:
         REQUESTED = "requested"
         UNVERIFIED = "unverified"
 
+    all_types = [Type.VERIFIED, Type.REQUESTED, Type.UNVERIFIED]
+
     def __init__(self):
         self.songs = Store[list](f"data/songs.json", [])
         os.makedirs("data/songs", exist_ok=True)
@@ -61,42 +63,19 @@ class Songs:
 
     def sync(self):
         self.songs.sync()
-
-    async def song_search(self, search_string: str) -> list[str]:
-
-        exact = [
-            song
-            for song in self.songlist
-            if search_string.lower() in song.lower()
-        ]
-
-        input_words = search_string.lower().split()
-
-        partial = [
-            song
-            for song in self.songlist
-            if song not in exact and all(word in song.lower() for word in input_words)
-        ]
-
-        return exact + partial
     
-    async def song_search_unverified(self, search_string: str) -> list[str]:
+    async def song_search(self, search_string: str, types: list[str] = all_types) -> list[str]:
+
+        songs = self.songtuples
+        search_string = search_string.lower()
 
         exact = [
             song[0]
-            for song in self.songtuples
-            if song[1]["type"] == Songs.Type.UNVERIFIED and search_string.lower() in song[0].lower()
+            for song in songs
+            if song[1]["type"] in types and search_string in song[0].lower()
         ]
 
-        input_words = search_string.lower().split()
-
-        partial = [
-            song[0]
-            for song in self.songtuples
-            if song[1]["type"] == Songs.Type.UNVERIFIED and song[0] not in exact and all(word in song[0].lower() for word in input_words)
-        ]
-
-        return exact + partial
+        return exact
 
     def get_attachements(
         self, song_obj: dict
@@ -189,8 +168,10 @@ class Songs:
         if song_str in self.songlist:
             return "Song already exists in my database"
         
-        if song_data["origin"] and [x for x in self.songs.data if x["origin"] == song_data["origin"]]:
-            return "Song with that URL is already in my database"
+        if song_data["origin"] and (duplicates := [x for x in self.songs.data if x["origin"] == song_data["origin"]]):
+            if duplicates[0]["type"] == Songs.Type.REQUESTED:
+                return "That song has already been requested."
+            return "Song with that URL is already in my database."
 
         song_obj = self.__generate_new_song()
         song_obj.update(song_data)

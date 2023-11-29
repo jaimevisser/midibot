@@ -25,8 +25,11 @@ class Commands(Cog):
         return await self.songs.song_search(ctx.value)
     
     async def song_search_unverified(self, ctx: discord.AutocompleteContext):
-        return await self.songs.song_search_unverified(ctx.value)
-
+        return await self.songs.song_search(ctx.value, types=[Songs.Type.UNVERIFIED])
+    
+    async def song_search_requested(self, ctx: discord.AutocompleteContext):
+        return await self.songs.song_search(ctx.value, types=[Songs.Type.REQUESTED])
+    
     async def wrong_server(self, ctx) -> bool:
         if ctx.guild.id not in servers:
             await ctx.respond(
@@ -104,6 +107,17 @@ class Commands(Cog):
         async def add_new_song(interaction: discord.Interaction, data: dict):
             data["requested_by"] = ctx.author.id
             data["type"] = Songs.Type.REQUESTED
+
+            sad_message = "These can't be downloaded *at all* so there's no way for our volunteers to grab it for you! :slight_frown:\nYour request hasn't been saved, feel free to put in a new request with another origin/url."
+
+            if data["origin"].startswith("https://musescore.com/official_scores/"):
+                await interaction.response.send_message("Oh buggers. You tried adding a request for an \"Official Score\" on musescore. "+sad_message, ephemeral=True)
+                return
+            
+            if data["origin"].startswith("https://www.musicnotes.com/") or data["origin"].startswith("https://musicnotes.com/"):
+                await interaction.response.send_message("Oh buggers. You tried adding a request for a score on Musicnotes. "+sad_message, ephemeral=True)
+                return
+
             if error := self.songs.add_song(data):
                 await interaction.response.send_message(error, ephemeral=True)
                 return
@@ -223,6 +237,32 @@ class Commands(Cog):
             await ctx.respond("I don't know that song?", ephemeral=True)
         else:
             await ctx.respond("Song removed", ephemeral=True)
+
+    @slash_command()
+    @guild_only()
+    @default_permissions(administrator=True)
+    async def decline_request(
+        self,
+        ctx: discord.ApplicationContext,
+        song: Option(
+            str,
+            "Song",
+            autocomplete=song_search_requested,
+        ),
+        reason: Option(str,"Reason for removal")
+    ):
+        """Remove a song and all accompanying files."""
+        if await self.wrong_server(ctx):
+            return
+        if not (song_obj := await self.get_song(ctx, song)):
+            return
+
+        if not self.songs.remove(song_obj):
+            await ctx.respond("I don't know that song?", ephemeral=True)
+        elif "requested_by" in song_obj:
+            await ctx.respond(f"Hey <@{song_obj['requested_by']}>. Your request has been removed from the Queue by <@{ctx.author.id}> because of the following reason:\n{reason}")
+        else:
+            await ctx.respond("Song removed, no requester found", ephemeral=True)
 
     @slash_command()
     @guild_only()
