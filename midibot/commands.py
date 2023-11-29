@@ -260,7 +260,7 @@ class Commands(Cog):
         if not self.songs.remove(song_obj):
             await ctx.respond("I don't know that song?", ephemeral=True)
         elif "requested_by" in song_obj:
-            await ctx.respond(f"Hey <@{song_obj['requested_by']}>. Your request has been removed from the Queue by <@{ctx.author.id}> because of the following reason:\n{reason}")
+            await ctx.respond(f"Hey <@{song_obj['requested_by']}>. Your request '{song}' has been removed from the Queue by <@{ctx.author.id}> because of the following reason:\n{reason}")
         else:
             await ctx.respond("Song removed, no requester found", ephemeral=True)
 
