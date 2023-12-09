@@ -348,6 +348,10 @@ class Commands(Cog):
     async def open_requests(
         self,
         ctx: discord.ApplicationContext,
+        amount: Option(
+            int,
+            "Amount of requests to show"
+        ) = None
     ):
         """Get a list of all open song requests."""
         if await self.wrong_server(ctx):
@@ -363,6 +367,9 @@ class Commands(Cog):
             for x in self.songs.songs.data
             if x["type"] == Songs.Type.REQUESTED and not x["origin"]
         ]
+
+        if amount:
+            sorted = sorted[:amount]
 
         chunk_size = 10
 
