@@ -103,6 +103,10 @@ class Commands(Cog):
         """Request a song."""
         if await self.wrong_server(ctx):
             return
+        
+        if self.songs.request_count() > 50:
+            await ctx.respond("There are currently too many requests in the queue. Please wait until some have been fulfilled before adding more.", ephemeral=True)
+            return
 
         async def add_new_song(interaction: discord.Interaction, data: dict):
             data["requested_by"] = ctx.author.id
@@ -360,7 +364,7 @@ class Commands(Cog):
         sorted = [
             x
             for x in self.songs.songs.data
-            if x["type"] == Songs.Type.REQUESTED and x["origin"]
+            if x["type"] == Songs.Type.REQUESTED and x["origin"] and x["origin"].startswith("https://musescore.com/")
         ]
         sorted += [
             x

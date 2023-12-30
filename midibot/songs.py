@@ -192,4 +192,11 @@ class Songs:
     def verify(self, song_obj:dict):
         song_obj["type"] = Songs.Type.VERIFIED
         self.sync()
+
+    def request_count(self) -> int:
+        return len([
+            x
+            for x in self.songs.data
+            if x["type"] == Songs.Type.REQUESTED
+        ])
         
