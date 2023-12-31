@@ -30,6 +30,9 @@ class Commands(Cog):
     async def song_search_requested(self, ctx: discord.AutocompleteContext):
         return await self.songs.song_search(ctx.value, types=[Songs.Type.REQUESTED])
     
+    async def song_search_no_requests(self, ctx: discord.AutocompleteContext):
+        return await self.songs.song_search(ctx.value, types=[Songs.Type.VERIFIED, Songs.Type.UNVERIFIED])
+    
     async def wrong_server(self, ctx) -> bool:
         if ctx.guild.id not in servers:
             await ctx.respond(
@@ -52,7 +55,7 @@ class Commands(Cog):
         song: Option(
             str,
             "Song",
-            autocomplete=song_search,
+            autocomplete=song_search_no_requests,
         ),
     ):
         """Download files for a song."""
@@ -276,7 +279,7 @@ class Commands(Cog):
         song: Option(
             str,
             "Song",
-            autocomplete=song_search,
+            autocomplete=song_search_no_requests,
         ),
         rating: Option(int, "Rating from 0 to 5", min_value=0, max_value=5),
     ):
