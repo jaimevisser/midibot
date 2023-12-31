@@ -114,7 +114,7 @@ class Commands(Cog):
 
             sad_message = "These can't be downloaded *at all* so there's no way for our volunteers to grab it for you! :slight_frown:\nYour request hasn't been saved, feel free to put in a new request with another origin/url."
 
-            if data["origin"].startswith("https://musescore.com/official_scores/"):
+            if data["origin"].startswith("https://musescore.com/official_scores/") or data["origin"].startswith("https://musescore.com/official_author/"):
                 await interaction.response.send_message("Oh buggers. You tried adding a request for an \"Official Score\" on musescore. "+sad_message, ephemeral=True)
                 return
             
