@@ -1,4 +1,5 @@
 from typing import Union
+from mido import MidiFile
 import os
 import shutil
 import uuid
@@ -110,11 +111,21 @@ class Songs:
 
     async def add_attachment(
         self, song_obj: dict, attachment: discord.Attachment
-    ) -> Union[None, bool]:
+    ) -> Union[None, str]:
 
         for ext in Songs.file_exts:
             if attachment.filename.endswith(ext):
                 stored = f'data/songs/{song_obj["id"]}{ext}'
+                tmp = f'data/songs/tmp.{song_obj["id"]}{ext}'
+
+                if ext == Songs.File.MIDI:
+                    await attachment.save(tmp)
+                    ok = self.check_tracks(tmp)
+                    os.remove(tmp)
+
+                    if not ok:
+                        return "This midi file has more then 2 tracks and can't be used in PianoVision. Please find another midi file."
+
                 if os.path.exists(stored):
                     os.remove(stored)
 
@@ -124,8 +135,13 @@ class Songs:
                     song_obj["type"] = Songs.Type.UNVERIFIED
                     self.sync()
 
-                return True
-        return False
+                return None
+            
+        return "I don't know what to do with that file. Make sure it is one of the following types:\n" + ", ".join(Songs.file_exts)
+    
+    def check_tracks(self, midifile:str) -> bool:
+        midi = MidiFile(midifile)
+        return len(midi.tracks) < 3
 
     def remove(self, song_obj:dict) -> bool:
 

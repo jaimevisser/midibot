@@ -5,3 +5,4 @@ pyyaml~=6.0
 requests==2.30.0
 aiohttp==3.8.4
 asynctest~=0.13.0
+mido~=1.3.2

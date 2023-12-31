@@ -200,16 +200,13 @@ class Commands(Cog):
 
         was_requested = song_obj["type"] == Songs.Type.REQUESTED
 
-        saved = await self.songs.add_attachment(song_obj, file)
-
-        if saved is True:
-            await ctx.respond(f"File added or replaced", ephemeral=True)
-        if saved is False:
+        if error := await self.songs.add_attachment(song_obj, file):
             await ctx.respond(
-                "I don't know what to do with that file. Make sure it is one of the following types:\n"
-                + ", ".join(Songs.file_exts),
+                error,
                 ephemeral=True,
             )
+        else:
+            await ctx.respond(f"File added or replaced", ephemeral=True)
 
         if (
             was_requested
