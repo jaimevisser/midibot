@@ -216,3 +216,11 @@ class Songs:
             if x["type"] == Songs.Type.REQUESTED
         ])
         
+    def requests_for_user(self, user:int) -> int:
+        return len([
+            x
+            for x in self.songs.data
+            if x["type"] == Songs.Type.REQUESTED and
+            "requested_by" in x and
+            x["requested_by"] == user
+        ])

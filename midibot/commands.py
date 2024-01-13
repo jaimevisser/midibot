@@ -110,6 +110,10 @@ class Commands(Cog):
         if self.songs.request_count() > 50:
             await ctx.respond("There are currently too many requests in the queue. Please wait until some have been fulfilled before adding more.", ephemeral=True)
             return
+        
+        if self.songs.requests_for_user(ctx.author.id) > 1:
+            await ctx.respond("To allow all users to put in requests we only allow two open requests per user. When your open requests have been handled you can add more.", ephemeral=True)
+            return
 
         async def add_new_song(interaction: discord.Interaction, data: dict):
             data["requested_by"] = ctx.author.id
