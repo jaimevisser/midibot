@@ -21,6 +21,8 @@ class Commands(Cog):
         self.bot = bot
         self.songs = Songs()
 
+        self.emoji = {}
+
     async def song_search(self, ctx: discord.AutocompleteContext):
         return await self.songs.song_search(ctx.value)
     
@@ -62,15 +64,11 @@ class Commands(Cog):
         if not (song_obj := await self.get_song(ctx, song)):
             return
 
-        await self.download_song(ctx, song_obj)
-
-    async def download_song(self, ctx, song_obj: dict, ephemeral = True):
-        song_obj = self.songs.get_attachements(song_obj)
-
-        (files, attachements) = song_obj
+        (files, attachements) = self.songs.get_attachements(song_obj)
 
         if len(attachements) > 0:
-            await ctx.respond("There you go", files=attachements, ephemeral=ephemeral)
+            embed = await self.create_embed(song_obj)
+            await ctx.respond(embeds=[embed], files=attachements, ephemeral=True)
         else:
             await ctx.respond(
                 "No files attached to that song, use /upload to add them.",
@@ -205,23 +203,29 @@ class Commands(Cog):
         was_requested = song_obj["type"] == Songs.Type.REQUESTED
 
         if error := await self.songs.add_attachment(song_obj, file):
-            await ctx.respond(
-                error,
-                ephemeral=True,
-            )
-        else:
-            await ctx.respond(f"File added or replaced", ephemeral=True)
+            await ctx.respond(error, ephemeral=True)
+            return
 
         if (
             was_requested
             and song_obj["type"] == Songs.Type.UNVERIFIED
             and "requested_by" in song_obj
         ):
+            (files, attachements) = self.songs.get_attachements(song_obj)
+
+            embed = await self.create_embed(song_obj)
+
             await ctx.respond(
                 f"Hey <@{song_obj['requested_by']}>, your song has been uploaded by <@{ctx.author.id}>!\n"+
-                "Make sure to use `/verify` if you have tested it in PianoVision and it works!"
+                "Make sure to use `/verify` if you have tested it in PianoVision and it works!",
+                embeds=[embed],
+                files=attachements
             )
-            await self.download_song(ctx, song_obj, ephemeral=False)
+
+            for f in files:
+                os.remove(f)
+        else:
+            await ctx.respond(f"File added or replaced", ephemeral=True)
 
     @slash_command()
     @guild_only()
@@ -235,7 +239,7 @@ class Commands(Cog):
             autocomplete=song_search,
         ),
     ):
-        """Remove a song and all accompanying files."""
+        """Remove a song and all accompanying files"""
         if await self.wrong_server(ctx):
             return
         if not (song_obj := await self.get_song(ctx, song)):
@@ -259,7 +263,7 @@ class Commands(Cog):
         ),
         reason: Option(str,"Reason for removal")
     ):
-        """Remove a song and all accompanying files."""
+        """Decline a request for a song"""
         if await self.wrong_server(ctx):
             return
         if not (song_obj := await self.get_song(ctx, song)):
@@ -311,23 +315,18 @@ class Commands(Cog):
 
         def songsorter(song: dict):
             return song.get("rating", float(0))
+        
+        await self.get_emoji()
 
         sorted = self.songs.songs.data.copy()
         sorted = [x for x in sorted if x["type"] == filter]
         sorted.sort(key=songsorter, reverse=True)
 
-        chunk_size = 20
+        chunk_size = 10
 
         chunked = [
             sorted[i : i + chunk_size] for i in range(0, len(sorted), chunk_size)
         ]
-
-        await ctx.respond(
-            "**Legend**\n"
-            + ":musical_note: : MuseScore file\n"
-            + ":musical_keyboard: : Midi file",
-            ephemeral=True,
-        )
 
         for songs in chunked:
             list = ""
@@ -337,13 +336,18 @@ class Commands(Cog):
 
                 ext = ""
                 ext += (
-                    ":musical_note:"
+                    self.emoji["Musescore"]
                     if Songs.File.MUSESCORE in attachments
                     else ":black_large_square:"
                 )
                 ext += (
-                    ":musical_keyboard:"
+                    self.emoji["Midi"]
                     if Songs.File.MIDI in attachments
+                    else ":black_large_square:"
+                )
+                ext += (
+                    self.emoji["PV"]
+                    if Songs.File.PIANOVISION in attachments
                     else ":black_large_square:"
                 )
 
@@ -389,14 +393,7 @@ class Commands(Cog):
             embeds = []
 
             for song in songs:
-                embed = discord.Embed(title=self.songs.song_to_string(song),
-                                      type="rich")
-                if "requested_by" in song:
-                    embed.add_field(name="Requested by",value=f'<@{song["requested_by"]}>')
-                if song["origin"]:
-                    embed.description = song["origin"]
-
-                embeds.append(embed)
+                embeds.append(await self.create_embed(song))
 
             await ctx.respond(embeds=embeds,ephemeral=True)
 
@@ -419,7 +416,7 @@ class Commands(Cog):
         
         self.songs.verify(song_obj)
 
-        await ctx.respond(f"<@{ctx.author.id}> has verified that \"{self.songs.song_to_string(song_obj)}\" works in PianoVision! Thanks!")
+        await ctx.respond(f"<@{ctx.author.id}> has verified that `{self.songs.song_to_string(song_obj)}` works in PianoVision! Thanks!")
 
     @slash_command()
     @guild_only()
@@ -441,3 +438,38 @@ class Commands(Cog):
             "`/add`: Add a song to the MidiBot database, I'll assume you have verified it works. Add the files afterwards with `/upload`.\n"+
             "`/rate`: Give a song a rating from 0-5. Songs with higher ratings appear higher in the `/list`."
         )
+
+    async def create_embed(self, song):
+
+        await self.get_emoji()
+
+        desc = []
+        embed = discord.Embed(title=f'{song["artist"]} - {song["song"]}', type="rich")
+        if song["version"] != "":
+            desc.append(song["version"])
+        if song["origin"]:
+            desc.append(song["origin"])
+        embed.description = "\n".join(desc)
+
+        attachments = self.songs.has_attachments(song)
+
+        if len(attachments) > 0:
+            ext = []
+            if Songs.File.MUSESCORE in attachments:
+                ext.append(self.emoji["Musescore"])
+            if Songs.File.MIDI in attachments:
+                ext.append(self.emoji["Midi"])
+            if Songs.File.PIANOVISION in attachments:
+                ext.append(self.emoji["PV"])
+            embed.add_field(name="Files", value=" ".join(ext))
+
+        if "requested_by" in song:
+            embed.add_field(name="Requested by", value=f'<@{song["requested_by"]}>')
+
+        return embed
+    
+    async def get_emoji(self):
+        if len(self.emoji) < 3:
+            self.emoji["Midi"] = str(discord.utils.get(self.bot.emojis, name='Midi'))
+            self.emoji["Musescore"] = str(discord.utils.get(self.bot.emojis, name='Musescore'))
+            self.emoji["PV"] = str(discord.utils.get(self.bot.emojis, name='PV'))
