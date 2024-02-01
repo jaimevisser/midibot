@@ -118,13 +118,13 @@ class Songs:
                 stored = f'data/songs/{song_obj["id"]}{ext}'
                 tmp = f'data/songs/tmp.{song_obj["id"]}{ext}'
 
-                if ext == Songs.File.MIDI:
-                    await attachment.save(tmp)
-                    ok = self.check_tracks(tmp)
-                    os.remove(tmp)
+                # if ext == Songs.File.MIDI:
+                #     await attachment.save(tmp)
+                #     ok = self.check_tracks(tmp)
+                #     os.remove(tmp)
 
-                    if not ok:
-                        return "This midi file has more then 2 tracks and can't be used in PianoVision. Please find another midi file."
+                #     if not ok:
+                #         return "This midi file has more then 2 tracks and can't be used in PianoVision. Please find another midi file."
 
                 if os.path.exists(stored):
                     os.remove(stored)
