@@ -466,6 +466,11 @@ class Commands(Cog):
         if "requested_by" in song:
             embed.add_field(name="Requested by", value=f'<@{song["requested_by"]}>')
 
+        if song['type'] == Songs.Type.VERIFIED:
+            embed.add_field(name="Verified", value=':white_check_mark:')
+        if song['type'] == Songs.Type.UNVERIFIED:
+            embed.add_field(name="Verified", value=':x:')
+
         return embed
     
     async def get_emoji(self):
