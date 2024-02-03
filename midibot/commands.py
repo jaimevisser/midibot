@@ -68,7 +68,7 @@ class Commands(Cog):
 
         if len(attachements) > 0:
             embed = await self.create_embed(song_obj)
-            await ctx.respond(embeds=[embed], files=attachements, ephemeral=True)
+            await ctx.respond(embeds=[embed], files=attachements)
         else:
             await ctx.respond(
                 "No files attached to that song, use /upload to add them.",
