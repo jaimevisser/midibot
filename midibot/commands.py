@@ -13,7 +13,7 @@ from discord.commands import default_permissions
 
 _log = logging.getLogger(__name__)
 
-servers = [1004388945422987304, 908282497769558036]
+servers = [1004388945422987304, 908282497769558036, 1206713211139792996]
 
 
 class Commands(Cog):
@@ -38,7 +38,7 @@ class Commands(Cog):
     async def wrong_server(self, ctx) -> bool:
         if ctx.guild.id not in servers:
             await ctx.respond(
-                "You can only use this bot in the pianovision server.", ephemeral=True
+                "You can only use this bot on approved servers.", ephemeral=True
             )
             return True
         return False
@@ -217,7 +217,7 @@ class Commands(Cog):
 
             await ctx.respond(
                 f"Hey <@{song_obj['requested_by']}>, your song has been uploaded by <@{ctx.author.id}>!\n"+
-                "Make sure to use `/verify` if you have tested it in PianoVision and it works!",
+                "Make sure to use `/verify` if you have tested it on a piano and it works!",
                 embeds=[embed],
                 files=attachements
             )
@@ -408,7 +408,7 @@ class Commands(Cog):
             autocomplete=song_search_unverified,
         )
     ):
-        """Verify a song works in PianoVision."""
+        """Verify a song is playable on piano."""
         if await self.wrong_server(ctx):
             return
         if not (song_obj := await self.get_song(ctx, song)):
@@ -416,7 +416,7 @@ class Commands(Cog):
         
         self.songs.verify(song_obj)
 
-        await ctx.respond(f"<@{ctx.author.id}> has verified that `{self.songs.song_to_string(song_obj)}` works in PianoVision! Thanks!")
+        await ctx.respond(f"<@{ctx.author.id}> has verified that `{self.songs.song_to_string(song_obj)}` is playable on piano! Thanks!")
 
     @slash_command()
     @guild_only()
@@ -427,14 +427,14 @@ class Commands(Cog):
         """Help!"""
         await ctx.respond(
             "**Midibot help!**\n"+
-            "Midibot is here to help you find midi files to play with PianoVision, or to request files you want to play.\n\n"+
+            "Midibot is here to help you find midi files to play on your piano, or to request files you want to play.\n\n"+
             "*The following commands are available:*\n"+
             "`/list`: List songs in Midibot, by default only shows verified songs but you can change the filter option if you want.\n"+
             "`/download`: Download a song, start typing in the song option to find the song you are looking for.\n"+
             "`/request`: Request a song. Adding a MuseScore URL gives you priority over songs that don't have an URL.\n"+
             "`/open_requests`: View all open requests, the ones listed first have been waiting the longest.\n"+
             "`/upload`: Upload midi, MuseScore or PianoVision json files for a song.\n"+
-            "`/verify`: Verify that an uploaded song works in PianoVision.\n"+
+            "`/verify`: Verify that an uploaded song is playable on piano.\n"+
             "`/add`: Add a song to the MidiBot database, I'll assume you have verified it works. Add the files afterwards with `/upload`.\n"+
             "`/rate`: Give a song a rating from 0-5. Songs with higher ratings appear higher in the `/list`."
         )
