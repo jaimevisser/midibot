@@ -380,6 +380,11 @@ class Commands(Cog):
             if x["type"] == Songs.Type.REQUESTED and not x["origin"]
         ]
 
+        if not sorted:          
+            embeds = [discord.Embed(title=f'The request queue is empty. Thanks for checking!', type="rich")]
+            await ctx.respond(embeds=embeds,ephemeral=True)
+            return
+
         if amount:
             sorted = sorted[:amount]
 
