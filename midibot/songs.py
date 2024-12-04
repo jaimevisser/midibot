@@ -7,6 +7,7 @@ import uuid
 import discord
 
 from midibot import Store
+from midibot import util
 
 
 class Songs:
@@ -39,6 +40,14 @@ class Songs:
 
             if "version" not in s or s["version"] == None:
                 s["version"] = ""
+
+            if "meta" not in s or s["meta"] == None:
+                s["meta"] = {}
+
+            exts = self.has_attachments(s)
+            for ext in exts:
+                meta = self.update_metadata(s, ext)
+                s["meta"][ext] = meta
 
         self.sync()
 
@@ -116,15 +125,6 @@ class Songs:
         for ext in Songs.file_exts:
             if attachment.filename.endswith(ext):
                 stored = f'data/songs/{song_obj["id"]}{ext}'
-                tmp = f'data/songs/tmp.{song_obj["id"]}{ext}'
-
-                # if ext == Songs.File.MIDI:
-                #     await attachment.save(tmp)
-                #     ok = self.check_tracks(tmp)
-                #     os.remove(tmp)
-
-                #     if not ok:
-                #         return "This midi file has more then 2 tracks and can't be used in PianoVision. Please find another midi file."
 
                 if os.path.exists(stored):
                     os.remove(stored)
@@ -133,15 +133,22 @@ class Songs:
 
                 if song_obj["type"] == Songs.Type.REQUESTED and ext == Songs.File.MIDI:
                     song_obj["type"] = Songs.Type.UNVERIFIED
-                    self.sync()
+                
+                meta = self.update_metadata(song_obj, ext)
+
+                if (duplicate := self.find_duplicate(meta, ext)):
+                    return f"This file is a duplicate. `{self.song_to_string(duplicate)}` already has this file attached."
+                
+                if "meta" not in song_obj or song_obj["meta"] == None:
+                    song_obj["meta"] = {}
+                
+                song_obj["meta"][ext] = meta 
+
+                self.sync()
 
                 return None
             
         return "I don't know what to do with that file. Make sure it is one of the following types:\n" + ", ".join(Songs.file_exts)
-    
-    def check_tracks(self, midifile:str) -> bool:
-        midi = MidiFile(midifile)
-        return len(midi.tracks) < 3
 
     def remove(self, song_obj:dict) -> bool:
 
@@ -224,3 +231,28 @@ class Songs:
             "requested_by" in x and
             x["requested_by"] == user
         ])
+    
+    @staticmethod
+    def update_metadata(song_obj, ext) -> dict:
+        file = f'data/songs/{song_obj["id"]}{ext}'
+
+        meta = {}
+        meta["hash"] = util.hash(file)
+        meta["size"] = os.path.getsize(file)
+
+        if ext == Songs.File.MIDI:
+            midi = MidiFile(file)
+            meta["tracks"] = len(midi.tracks)
+
+        return meta
+
+    def find_duplicate(self, meta, ext) -> Union[dict, None]:        
+        for song in self.songs.data:
+            if "meta" in song and ext in song["meta"]:
+                if Songs.meta_equal(meta, song["meta"][ext]):
+                    return song
+        return None
+    
+    @staticmethod
+    def meta_equal(meta1, meta2) -> bool:
+        return meta1["size"] == meta2["size"] and meta1["hash"] == meta2["hash"]
