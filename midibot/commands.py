@@ -377,6 +377,11 @@ class Commands(Cog):
         sorted += [
             x
             for x in self.songs.songs.data
+            if x["type"] == Songs.Type.REQUESTED and x["origin"] and not x["origin"].startswith("https://musescore.com/")
+        ]
+        sorted += [
+            x
+            for x in self.songs.songs.data
             if x["type"] == Songs.Type.REQUESTED and not x["origin"]
         ]
 
